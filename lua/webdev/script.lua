@@ -1,7 +1,27 @@
+---@class webdev.Config.scripts.virtual_text
+---@field enabled? boolean Whether to show virtual text or not. Default = true.
+---@field hl_group? string The highlight group to use for the virtual text. Default = 'WebDevRunScript'.
+---@field text? string The text to render. Default = '  '.
+
+---@class webdev.Config.scripts
+---@field virtual_text? webdev.Config.scripts.virtual_text
+
+local usercmd = vim.api.nvim_create_user_command
 local util = require('webdev.util')
 local ns = vim.api.nvim_create_namespace('package_json_runner')
 
-local M = { is_setup = false }
+---@type webdev.Config.scripts
+local default_config = {
+  virtual_text = {
+    enabled = true,
+    hl_group = 'WebDevRunScript',
+    text = '  ',
+  },
+}
+
+local M = {
+  config = default_config,
+}
 
 ---@param lines string[]
 ---@return integer, integer
@@ -87,44 +107,77 @@ local function get_script_table()
   return scripts
 end
 
+---Updates the virtual text in the package.json
 local function update_virtual_text()
   if not util.is_valid_package_json() then
     return
   end
+
   vim.api.nvim_buf_clear_namespace(0, ns, 0, -1)
+  if not M.config.virtual_text.enabled then
+    vim.notify('return true')
+    return true
+  end
+
   vim.iter(get_script_table()):each(function(script)
     vim.api.nvim_buf_set_extmark(0, ns, script.line - 1, 0, {
-      virt_text = { { '  ', 'RunScript' } },
+      virt_text = { { M.config.virtual_text.text, M.config.virtual_text.hl_group } },
       hl_mode = 'combine',
       virt_text_win_col = 1,
     })
   end)
 end
 
-function M:setup()
-  vim.api.nvim_set_hl(0, 'RunScript', { fg = '#08F000' })
-
-  vim.api.nvim_create_autocmd('BufEnter', {
+local function set_autocmd()
+  vim.api.nvim_create_autocmd({ 'BufEnter', 'TextChanged', 'TextChangedI' }, {
+    group = vim.api.nvim_create_augroup('PackageJsonRunner', { clear = true }),
     pattern = 'package.json',
     callback = function()
-      update_virtual_text()
+      return update_virtual_text()
     end,
   })
-
-  vim.api.nvim_create_autocmd({ 'TextChanged', 'TextChangedI' }, {
-    pattern = 'package.json',
-    callback = function()
-      update_virtual_text()
-    end,
-  })
-  self.is_setup = true
 end
 
-function M:run()
-  if not self.is_setup then
-    self:setup()
+function M.disable_virtual_text()
+  M.config.virtual_text.enabled = false
+  vim.api.nvim_buf_clear_namespace(0, ns, 0, -1)
+end
+
+function M.enable_virtual_text()
+  M.config.virtual_text.enabled = true
+  update_virtual_text()
+  set_autocmd()
+end
+
+---Sets up autocmds for handling virtual text inside the package.json
+---@param config? webdev.Config.scripts
+function M.setup(config)
+  M.config = vim.tbl_deep_extend('force', default_config, config or {})
+  vim.api.nvim_set_hl(0, 'WebDevRunScript', { fg = '#08F000' })
+
+  if M.config.virtual_text.enabled then
+    set_autocmd()
   end
+
+  usercmd('WebDevToggleScriptVirtualText', M.toggle_virtual_text, { desc = "Toggles the script runner's virtual text" })
+  usercmd('WebDevDisableScriptVirtualText', M.disable_virtual_text, { desc = "Disables the script runner's virtual text" })
+  usercmd('WebDevEnableScriptVirtualText', M.enable_virtual_text, { desc = "Enables the script runner's virtual text" })
+  usercmd('WebDevRunScript', M.run, { desc = 'Runs the script under the cursor' })
+end
+
+---Toggles the virtual text for the script runner
+function M.toggle_virtual_text()
+  if M.config.virtual_text.enabled then
+    M.disable_virtual_text()
+  else
+    M.enable_virtual_text()
+  end
+end
+
+---Runs the script under the cursor
+function M.run()
   local scripts = get_script_table()
+
   if not can_run_script(scripts) then
     return
   end

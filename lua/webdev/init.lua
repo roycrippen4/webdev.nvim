@@ -1,7 +1,7 @@
-local M = {}
--- local pm = require('webdev.pm')
 local util = require('webdev.util')
 local script = require('webdev.script')
+
+local M = {}
 
 -- function M.setup()
 -- M.scripts = get_script_table()
@@ -35,25 +35,15 @@ local script = require('webdev.script')
 -- log(get_script(json.scripts))
 -- end)
 
+---@class webdev.Config
+---@field scripts? webdev.Config.scripts
+
 function M.setup()
-  script:setup()
-  -- vim.keymap.set('n', '<leader>nr', script.run, { desc = 'Run script' })
-  -- vim.api.nvim_create_autocmd('BufEnter', {
-  --   pattern = 'package.json',
-  --   once = true,
-  --   callback = function()
-  --     Snacks.debug.inspect(script.get_script_table())
-  --   end,
-  -- })
+  script.setup()
 end
 
--- local group = vim.api.nvim_create_augroup('PackageCheck', { clear = true })
--- vim.api.nvim_create_autocmd({ 'BufEnter', 'TextChanged', 'TextChangedI' }, {
---   pattern = 'package.json',
---   group = group,
---   callback = function()
---     parse_json()
---   end,
--- })
+function M.run_script()
+  script.run()
+end
 
 return M
